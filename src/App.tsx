@@ -848,45 +848,64 @@ export default function JerrySalesTracker() {
         </div>
       </div>
 
-      {/* ── Period Navigator ── */}
-      {allPeriods.length > 0 && (
+      {/* ── Period Navigator ── always visible once data exists ── */}
+      {!loading && (agents.length > 0 || allPeriods.length > 0) && (
         <div style={{
           background: J.white, borderBottom: `1px solid ${J.border}`,
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
           padding: "10px 32px",
         }}>
+          {/* Prev arrow */}
           <button
             onClick={goPrev}
             disabled={!canGoPrev}
             style={{
+              width: 32, height: 32,
+              display: "flex", alignItems: "center", justifyContent: "center",
               background: canGoPrev ? J.grayLight : "transparent",
-              border: `1px solid ${canGoPrev ? J.border : "transparent"}`,
-              borderRadius: 8, color: canGoPrev ? J.inkMid : J.border,
-              fontWeight: 700, fontSize: 16, cursor: canGoPrev ? "pointer" : "default",
-              padding: "4px 12px", lineHeight: 1,
+              border: `1px solid ${canGoPrev ? J.border : J.border + "44"}`,
+              borderRadius: 8,
+              color: canGoPrev ? J.inkMid : J.border,
+              fontWeight: 700, fontSize: 18,
+              cursor: canGoPrev ? "pointer" : "not-allowed",
+              flexShrink: 0,
+              opacity: canGoPrev ? 1 : 0.35,
             }}
           >‹</button>
 
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: J.ink }}>
+          {/* Period label */}
+          <div style={{
+            textAlign: "center", minWidth: 160,
+            padding: "4px 16px",
+            background: J.purpleLight,
+            borderRadius: 8,
+            border: `1px solid ${J.purple}22`,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: J.ink, letterSpacing: "0.01em" }}>
               {selectedPeriod ?? "—"}
             </div>
-            {allPeriods.length > 1 && (
-              <div style={{ fontSize: 11, color: J.gray }}>
-                {periodIdx + 1} of {allPeriods.length} periods
-              </div>
-            )}
+            <div style={{ fontSize: 10, color: J.gray, marginTop: 1 }}>
+              {allPeriods.length === 1
+                ? "1 period on file — import next month to navigate"
+                : `${periodIdx + 1} of ${allPeriods.length} periods`}
+            </div>
           </div>
 
+          {/* Next arrow */}
           <button
             onClick={goNext}
             disabled={!canGoNext}
             style={{
+              width: 32, height: 32,
+              display: "flex", alignItems: "center", justifyContent: "center",
               background: canGoNext ? J.grayLight : "transparent",
-              border: `1px solid ${canGoNext ? J.border : "transparent"}`,
-              borderRadius: 8, color: canGoNext ? J.inkMid : J.border,
-              fontWeight: 700, fontSize: 16, cursor: canGoNext ? "pointer" : "default",
-              padding: "4px 12px", lineHeight: 1,
+              border: `1px solid ${canGoNext ? J.border : J.border + "44"}`,
+              borderRadius: 8,
+              color: canGoNext ? J.inkMid : J.border,
+              fontWeight: 700, fontSize: 18,
+              cursor: canGoNext ? "pointer" : "not-allowed",
+              flexShrink: 0,
+              opacity: canGoNext ? 1 : 0.35,
             }}
           >›</button>
         </div>
