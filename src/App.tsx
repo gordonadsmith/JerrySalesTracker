@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
 import {
-  collection, doc, setDoc, deleteDoc,
-  onSnapshot, writeBatch, getDoc,
+  collection, doc, setDoc,
+  onSnapshot, writeBatch,
+  QuerySnapshot, DocumentSnapshot,
 } from "firebase/firestore";
 
 // ── Brand Colors ────────────────────────────────────────────────────────────
@@ -674,14 +675,14 @@ export default function JerrySalesTracker() {
   // ── Firebase: real-time listeners ──
   useEffect(() => {
     // Listen to agents collection
-    const unsubAgents = onSnapshot(collection(db, "agents"), snapshot => {
-      const data = snapshot.docs.map(d => d.data() as AgentRecord);
+    const unsubAgents = onSnapshot(collection(db, "agents"), (snapshot: QuerySnapshot) => {
+      const data = snapshot.docs.map((d: any) => d.data() as AgentRecord);
       setAgents(data);
       setLoading(false);
     });
 
     // Listen to settings doc
-    const unsubSettings = onSnapshot(doc(db, "config", "tierTargets"), snapshot => {
+    const unsubSettings = onSnapshot(doc(db, "config", "tierTargets"), (snapshot: DocumentSnapshot) => {
       if (snapshot.exists()) {
         setTierTargets(snapshot.data().tiers as TierTarget[]);
       }
