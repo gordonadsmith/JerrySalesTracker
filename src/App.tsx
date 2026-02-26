@@ -662,6 +662,8 @@ function TeamDashboard({ agents, tiers, onSelectAgent }: {
 // ── Main App ────────────────────────────────────────────────────────────────
 export default function JerrySalesTracker() {
   const [agents, setAgents]             = useState<AgentRecord[]>([]);
+  const [allPeriods, setAllPeriods]     = useState<string[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null);
   const [tierTargets, setTierTargets]   = useState<TierTarget[]>(DEFAULT_TIER_TARGETS);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [showSettings, setShowSettings]   = useState(false);
@@ -672,24 +674,47 @@ export default function JerrySalesTracker() {
 
   const activeAgent = agents.find(a => a.name === selectedAgent) ?? null;
 
-  // ── Firebase: real-time listeners ──
+  // ── Period navigation helpers ──
+  const periodIdx   = selectedPeriod ? allPeriods.indexOf(selectedPeriod) : -1;
+  const canGoPrev   = periodIdx > 0;
+  const canGoNext   = periodIdx < allPeriods.length - 1;
+  const goPrev      = () => { if (canGoPrev)  { setSelectedPeriod(allPeriods[periodIdx - 1]); setSelectedAgent(null); } };
+  const goNext      = () => { if (canGoNext)  { setSelectedPeriod(allPeriods[periodIdx + 1]); setSelectedAgent(null); } };
+
+  // ── Firebase: listen to available periods ──
   useEffect(() => {
-    // Listen to agents collection
-    const unsubAgents = onSnapshot(collection(db, "agents"), (snapshot: QuerySnapshot) => {
-      const data = snapshot.docs.map((d: any) => d.data() as AgentRecord);
-      setAgents(data);
+    const unsubPeriods = onSnapshot(collection(db, "periods"), (snapshot: QuerySnapshot) => {
+      const periods = snapshot.docs.map((d: any) => d.id).sort();
+      setAllPeriods(periods);
+      // Auto-select the latest period if none selected yet
+      setSelectedPeriod(prev => prev ?? (periods.length > 0 ? periods[periods.length - 1] : null));
       setLoading(false);
     });
 
     // Listen to settings doc
     const unsubSettings = onSnapshot(doc(db, "config", "tierTargets"), (snapshot: DocumentSnapshot) => {
       if (snapshot.exists()) {
-        setTierTargets(snapshot.data().tiers as TierTarget[]);
+        setTierTargets(snapshot.data()!.tiers as TierTarget[]);
       }
     });
 
-    return () => { unsubAgents(); unsubSettings(); };
+    return () => { unsubPeriods(); unsubSettings(); };
   }, []);
+
+  // ── Firebase: listen to agents for the selected period ──
+  useEffect(() => {
+    if (!selectedPeriod) return;
+    setLoading(true);
+    const unsubAgents = onSnapshot(
+      collection(db, "periods", selectedPeriod, "agents"),
+      (snapshot: QuerySnapshot) => {
+        const data = snapshot.docs.map((d: any) => d.data() as AgentRecord);
+        setAgents(data);
+        setLoading(false);
+      }
+    );
+    return () => unsubAgents();
+  }, [selectedPeriod]);
 
   // ── Firebase: save tier targets ──
   const saveTierTargets = async (tiers: TierTarget[]) => {
@@ -708,26 +733,33 @@ export default function JerrySalesTracker() {
         setImportStatus("⚠️ No valid rows found — check CSV format.");
         return;
       }
-      // Batch write — Firestore limit is 500 per batch
+      const period = parsed[0].period;
+      // Batch write into periods/{period}/agents/{name}
       const batch = writeBatch(db);
+      // Write the period marker doc so it shows in the period list
+      batch.set(doc(db, "periods", period), { period, importedAt: new Date().toISOString() });
       parsed.forEach(agent => {
-        const ref = doc(db, "agents", agent.name); // agent name as doc ID
-        batch.set(ref, agent);                      // overwrites on re-import
+        const ref = doc(db, "periods", period, "agents", agent.name);
+        batch.set(ref, agent);
       });
       await batch.commit();
+      setSelectedPeriod(period);
+      setSelectedAgent(null);
       setImportStatus(`✅ ${parsed.length} agent${parsed.length !== 1 ? "s" : ""} updated · ${parsed[0]?.period ?? ""}`);
       setTimeout(() => setImportStatus(""), 6000);
     };
     reader.readAsText(file);
   };
 
-  // ── Firebase: clear all agents ──
+  // ── Firebase: clear current period ──
   const clearAllAgents = async () => {
-    if (!window.confirm("Clear all agent data from the server? This cannot be undone.")) return;
+    if (!selectedPeriod) return;
+    if (!window.confirm(`Clear all data for ${selectedPeriod}? This cannot be undone.`)) return;
     const batch = writeBatch(db);
     agents.forEach(agent => {
-      batch.delete(doc(db, "agents", agent.name));
+      batch.delete(doc(db, "periods", selectedPeriod, "agents", agent.name));
     });
+    batch.delete(doc(db, "periods", selectedPeriod));
     await batch.commit();
     setSelectedAgent(null);
   };
@@ -815,6 +847,50 @@ export default function JerrySalesTracker() {
           )}
         </div>
       </div>
+
+      {/* ── Period Navigator ── */}
+      {allPeriods.length > 0 && (
+        <div style={{
+          background: J.white, borderBottom: `1px solid ${J.border}`,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
+          padding: "10px 32px",
+        }}>
+          <button
+            onClick={goPrev}
+            disabled={!canGoPrev}
+            style={{
+              background: canGoPrev ? J.grayLight : "transparent",
+              border: `1px solid ${canGoPrev ? J.border : "transparent"}`,
+              borderRadius: 8, color: canGoPrev ? J.inkMid : J.border,
+              fontWeight: 700, fontSize: 16, cursor: canGoPrev ? "pointer" : "default",
+              padding: "4px 12px", lineHeight: 1,
+            }}
+          >‹</button>
+
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: J.ink }}>
+              {selectedPeriod ?? "—"}
+            </div>
+            {allPeriods.length > 1 && (
+              <div style={{ fontSize: 11, color: J.gray }}>
+                {periodIdx + 1} of {allPeriods.length} periods
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={goNext}
+            disabled={!canGoNext}
+            style={{
+              background: canGoNext ? J.grayLight : "transparent",
+              border: `1px solid ${canGoNext ? J.border : "transparent"}`,
+              borderRadius: 8, color: canGoNext ? J.inkMid : J.border,
+              fontWeight: 700, fontSize: 16, cursor: canGoNext ? "pointer" : "default",
+              padding: "4px 12px", lineHeight: 1,
+            }}
+          >›</button>
+        </div>
+      )}
 
       {/* ── Loading ── */}
       {loading && (
