@@ -342,7 +342,7 @@ export default function JerrySalesTracker() {
   const openLog = () => { resetModal(); setShowLog(true); };
 
   const logCall = useCallback(() => {
-    const { base, bonus, total, bonusReasons } = calculatePoints(logProducts, logLiability);
+    const { base, bonus, bonusReasons } = calculatePoints(logProducts, logLiability);
     const premiumVal = Object.values(logPremiums).reduce((s, v) => s + (parseFloat(v || "0") || 0), 0);
     setCalls(prev => [{
       id: generateId(),
@@ -467,7 +467,7 @@ export default function JerrySalesTracker() {
               val: currentTier?.label ?? "Estimating",
               sub: currentTier
                 ? `${(currentTier.rate * 100).toFixed(0)}% commission rate`
-                : `Using Bronze rate (${(COMMISSION_TIERS[0]?.rate * 100 ?? 5).toFixed(0)}%) as estimate`,
+                : `Using Bronze rate (${((COMMISSION_TIERS[0]?.rate ?? 0.05) * 100).toFixed(0)}%) as estimate`,
               accent: currentTier ? TIER_COLORS[COMMISSION_TIERS.indexOf(currentTier)] : TIER_COLORS[0],
               text: true,
             },
