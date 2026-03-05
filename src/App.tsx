@@ -691,20 +691,14 @@ export default function JerrySalesTracker() {
       setLoading(false);
     });
 
-    // Listen to settings doc
-    const unsubSettings = onSnapshot(doc(db, "config", "tierTargets"), (snapshot: DocumentSnapshot) => {
-      if (snapshot.exists()) {
-        setTierTargets(snapshot.data()!.tiers as TierTarget[]);
-      }
-    });
-
-    return () => { unsubPeriods(); unsubSettings(); };
+    return () => { unsubPeriods(); };
   }, []);
 
-  // ── Firebase: listen to agents for the selected period ──
+  // ── Firebase: listen to agents + tier targets for the selected period ──
   useEffect(() => {
     if (!selectedPeriod) return;
     setLoading(true);
+
     const unsubAgents = onSnapshot(
       collection(db, "periods", selectedPeriod, "agents"),
       (snapshot: QuerySnapshot) => {
@@ -713,12 +707,29 @@ export default function JerrySalesTracker() {
         setLoading(false);
       }
     );
-    return () => unsubAgents();
+
+    // Load this period's tier targets (fall back to defaults if none saved yet)
+    const unsubTiers = onSnapshot(
+      doc(db, "config", `tiers_${selectedPeriod}`),
+      (snapshot: DocumentSnapshot) => {
+        if (snapshot.exists()) {
+          setTierTargets(snapshot.data()!.tiers as TierTarget[]);
+          setEditingTiers(snapshot.data()!.tiers as TierTarget[]);
+        } else {
+          // No targets saved for this period yet — use defaults
+          setTierTargets(DEFAULT_TIER_TARGETS);
+          setEditingTiers(DEFAULT_TIER_TARGETS.map(t => ({ ...t })));
+        }
+      }
+    );
+
+    return () => { unsubAgents(); unsubTiers(); };
   }, [selectedPeriod]);
 
-  // ── Firebase: save tier targets ──
+  // ── Firebase: save tier targets for the current period ──
   const saveTierTargets = async (tiers: TierTarget[]) => {
-    await setDoc(doc(db, "config", "tierTargets"), { tiers });
+    if (!selectedPeriod) return;
+    await setDoc(doc(db, "config", `tiers_${selectedPeriod}`), { tiers, period: selectedPeriod });
     setTierTargets(tiers);
     setShowSettings(false);
   };
@@ -977,7 +988,7 @@ export default function JerrySalesTracker() {
               <span style={{ fontSize: 18, fontWeight: 800, color: J.ink }}>Monthly Commission Targets</span>
             </div>
             <p style={{ fontSize: 13, color: J.gray, marginBottom: 24, marginTop: 4 }}>
-              Set point thresholds and commission rates. Changes save to the server and update for everyone instantly.
+              Set point thresholds and commission rates for <strong style={{ color: J.purple }}>{selectedPeriod ?? "this period"}</strong>. Each period saves its own targets independently.
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
